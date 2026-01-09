@@ -51,6 +51,7 @@ class MultiBotCoordinator:
             return BackendDevAgent(
                 github_token=self.settings.github_token,
                 work_dir=self.settings.work_dir,
+                model=agent_config.model,
                 character_mode=character_mode,
                 triggers=agent_config.triggers,
                 allowed_tools=agent_config.tools,
@@ -58,6 +59,7 @@ class MultiBotCoordinator:
         elif agent_name == "devops":
             return DevOpsAgent(
                 work_dir=self.settings.work_dir,
+                model=agent_config.model,
                 character_mode=character_mode,
                 triggers=agent_config.triggers,
                 allowed_tools=agent_config.tools,

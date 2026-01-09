@@ -22,6 +22,7 @@ class DevOpsAgent(BaseAgent):
     def __init__(
         self,
         work_dir: Path | None = None,
+        model: str = "claude-sonnet-4-20250514",
         character_mode: bool = True,
         triggers: list[str] | None = None,
         allowed_tools: list[str] | None = None,
@@ -30,12 +31,13 @@ class DevOpsAgent(BaseAgent):
 
         Args:
             work_dir: Working directory for operations
+            model: AI model to use (from agents.yaml)
             character_mode: Whether to use Judy Alvarez personality
             triggers: Keywords that activate this agent (from agents.yaml)
             allowed_tools: Tools this agent can use (from agents.yaml)
         """
         # Use tools from config, or sensible defaults
-        tools = allowed_tools or ["Read", "Glob", "Grep", "mcp__docker-mcp__*"]
+        tools = allowed_tools or ["Read", "Glob", "Grep", "Bash"]
 
         config = AgentConfig(
             name="devops",
@@ -45,6 +47,7 @@ class DevOpsAgent(BaseAgent):
 
         super().__init__(config, work_dir or Path.cwd())
 
+        self._model = model
         self._character_mode = character_mode
         self._triggers = triggers or []  # Triggers come from agents.yaml
 
@@ -90,6 +93,7 @@ class DevOpsAgent(BaseAgent):
 
         # Build options using tools from config
         options = ClaudeAgentOptions(
+            model=self._model,
             system_prompt=get_chat_prompt(character_mode=use_character),
             allowed_tools=self.config.allowed_tools,
             mcp_servers=self.get_mcp_servers(),

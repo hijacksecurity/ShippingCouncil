@@ -105,15 +105,17 @@ DISCORD_BOT_TOKEN=your-token
 agents:
   backend_dev:
     role: "Senior Backend Engineer"
+    model: "claude-sonnet-4-20250514"  # AI model per agent
     discord_token_env: "DISCORD_BACKEND_BOT_TOKEN"
     character:
       name: "Rick Sanchez"
       emoji: "🧪"
-    triggers: [backend, api, git, code, feature]
+    triggers: [backend, api, git, code, repo, feature]
     tools: [Read, Write, Edit, Glob, Grep, Bash, "mcp__git__*"]
 
   devops:
     role: "Senior DevOps Engineer"
+    model: "claude-sonnet-4-20250514"
     discord_token_env: "DISCORD_DEVOPS_BOT_TOKEN"
     character:
       name: "Judy Alvarez"
@@ -137,6 +139,8 @@ Example routing:
 
 ## Key Patterns
 
+- **Model per agent**: Each agent can use a different Claude model (config in agents.yaml)
+- **Session continuity**: Agents maintain conversation context across messages
 - **Character mode toggle**: Professional or personality prompts via config
 - **API call limits**: Max 50 calls per session, warning at 80%
 - **Read-only tools**: DevOps agent can only view Docker, not modify
@@ -148,7 +152,7 @@ Example routing:
 1. Create `src/agents/{name}/` directory with `agent.py` and `prompts.py`
 2. Extend `BaseAgent`, implement `name`, `get_system_prompt()`, `get_mcp_servers()`
 3. Add character prompt with personality, catchphrases
-4. Add to `config/agents.yaml` with role, triggers, tools
-5. Create new Discord bot in Developer Portal
+4. Add to `config/agents.yaml` with role, model, triggers, tools
+5. Create new Discord bot in Developer Portal (enable Message Content Intent)
 6. Add `DISCORD_{NAME}_BOT_TOKEN` to `.env`
 7. Register in `MultiBotCoordinator._create_agent()`

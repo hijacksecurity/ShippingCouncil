@@ -51,6 +51,7 @@ class AgentConfig:
 
     name: str  # Agent identifier (e.g., "backend_dev")
     role: str  # Role description
+    model: str  # AI model to use (e.g., "claude-sonnet-4-20250514")
     discord_token_env: str  # Environment variable name for Discord token
     discord_bot_name: str  # Display name for the bot
     character: CharacterConfig
@@ -77,6 +78,7 @@ class AgentConfig:
         return cls(
             name=name,
             role=data.get("role", ""),
+            model=data.get("model", "claude-sonnet-4-20250514"),
             discord_token_env=data.get("discord_token_env", ""),
             discord_bot_name=data.get("discord_bot_name", name),
             character=character,

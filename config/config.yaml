@@ -1,0 +1,11 @@
+# Application configuration
+
+app:
+  log_level: INFO
+  work_dir: /tmp/shipping-council-work
+
+discord:
+  guild_id: null  # Set to your Discord server ID for faster slash command sync
+
+github:
+  default_repo: null  # Optional: default repo for tasks (e.g., "owner/repo")

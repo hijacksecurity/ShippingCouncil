@@ -97,6 +97,11 @@ class DevOpsAgent(BaseAgent):
             cwd=self.work_dir,
         )
 
+        # Resume from previous session if available (maintains conversation context)
+        if self._session_id:
+            options.resume = self._session_id
+            ai_log.info(f"Resuming session: {self._session_id[:8]}...")
+
         ai_log.info("Calling Claude Agent SDK...")
         ai_log.debug(f"Options: allowed_tools={options.allowed_tools}")
         ai_log.debug(f"Working directory: {self.work_dir}")
@@ -104,17 +109,18 @@ class DevOpsAgent(BaseAgent):
         try:
             self._check_api_limit()
             async for msg in query(prompt=message, options=options):
+                # Capture session ID for conversation continuity
+                if hasattr(msg, "session_id") and msg.session_id:
+                    self._session_id = msg.session_id
+
                 ai_log.debug(f"Received message type: {type(msg).__name__}")
                 if isinstance(msg, AssistantMessage):
                     for block in msg.content:
                         ai_log.debug(f"Block type: {type(block).__name__}")
                         if isinstance(block, TextBlock):
-                            ai_log.debug(f"TextBlock content: {block.text[:100] if block.text else '(empty)'}...")
                             final_message += block.text
 
             ai_log.info(f"AI response length: {len(final_message)} chars")
-            if final_message:
-                ai_log.debug(f"Response preview: {final_message[:200]}...")
             return AgentResult(
                 success=True,
                 message=final_message,

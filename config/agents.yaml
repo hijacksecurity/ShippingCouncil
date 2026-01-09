@@ -31,6 +31,7 @@ agents:
       - python
       - code
       - git
+      - repo
       - feature
       - function
       - class

@@ -168,7 +168,7 @@ class MultiBotCoordinator:
                 content = content.replace("@everyone", "").replace("@here", "").strip()
 
                 if not content:
-                    await message.channel.send("How can I help you?", reference=message)
+                    await message.reply("How can I help you?", mention_author=False)
                     return
 
                 # Process with agent
@@ -181,11 +181,11 @@ class MultiBotCoordinator:
                             response = response[:1900] + "..."
                         if char_mode:
                             response = f"{ag_config.character.emoji} {response}"
-                        await message.channel.send(response, reference=message)
+                        await message.reply(response, mention_author=False)
                     else:
-                        await message.channel.send(
+                        await message.reply(
                             f"Sorry, I encountered an error: {result.error}",
-                            reference=message
+                            mention_author=False
                         )
 
             bot = client  # Use client as bot for consistency

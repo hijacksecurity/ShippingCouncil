@@ -1,5 +1,6 @@
 """Base agent interface using Claude Agent SDK."""
 
+import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -14,6 +15,14 @@ from claude_agent_sdk import (
     query,
 )
 
+logger = logging.getLogger(__name__)
+
+
+class APILimitExceeded(Exception):
+    """Raised when the API call limit is reached."""
+
+    pass
+
 
 @dataclass
 class AgentConfig:
@@ -22,6 +31,8 @@ class AgentConfig:
     name: str
     allowed_tools: list[str] = field(default_factory=list)
     max_turns: int | None = None
+    max_api_calls: int = 50  # Prevent runaway loops
+    character_mode: bool = True  # Toggle character personality
 
 
 @dataclass
@@ -49,6 +60,34 @@ class BaseAgent(ABC):
         self.work_dir = work_dir or Path.cwd()
         self._session_id: str | None = None
         self._client: ClaudeSDKClient | None = None
+        self._api_call_count: int = 0
+
+    def _check_api_limit(self) -> None:
+        """Check if API call limit is reached.
+
+        Raises:
+            APILimitExceeded: If the limit has been reached
+        """
+        if self._api_call_count >= self.config.max_api_calls:
+            raise APILimitExceeded(
+                f"API call limit reached ({self.config.max_api_calls} calls). "
+                "Reset the agent or start a new session."
+            )
+
+        self._api_call_count += 1
+
+        # Log warning at 80% threshold
+        threshold = int(self.config.max_api_calls * 0.8)
+        if self._api_call_count == threshold:
+            logger.warning(
+                f"Agent {self.name}: Approaching API limit "
+                f"({self._api_call_count}/{self.config.max_api_calls})"
+            )
+
+    def reset_api_count(self) -> None:
+        """Reset the API call counter."""
+        self._api_call_count = 0
+        logger.debug(f"Agent {self.name}: API call count reset")
 
     @property
     @abstractmethod
@@ -104,6 +143,16 @@ class BaseAgent(ABC):
         Returns:
             AgentResult with the outcome
         """
+        # Check API limit before making call
+        try:
+            self._check_api_limit()
+        except APILimitExceeded as e:
+            return AgentResult(
+                success=False,
+                message="API limit exceeded",
+                error=str(e),
+            )
+
         options = self.get_options(**context)
 
         # Resume from previous session if available
@@ -157,6 +206,16 @@ class BaseAgent(ABC):
         Returns:
             AgentResult with the response
         """
+        # Check API limit before making call
+        try:
+            self._check_api_limit()
+        except APILimitExceeded as e:
+            return AgentResult(
+                success=False,
+                message="API limit exceeded",
+                error=str(e),
+            )
+
         if not self._client:
             await self.start_conversation()
 
@@ -198,3 +257,22 @@ class BaseAgent(ABC):
     def reset(self) -> None:
         """Reset the agent state."""
         self._session_id = None
+        self.reset_api_count()
+
+    async def is_relevant(self, message: str, triggers: list[str] | None = None) -> bool:
+        """Check if this agent should respond to a message.
+
+        Args:
+            message: The message to check
+            triggers: Optional list of trigger keywords (uses config triggers if not provided)
+
+        Returns:
+            True if the agent should respond
+        """
+        # Subclasses can override with more sophisticated logic
+        check_triggers = triggers or getattr(self.config, "triggers", [])
+        if not check_triggers:
+            return True  # No triggers = always relevant
+
+        message_lower = message.lower()
+        return any(trigger.lower() in message_lower for trigger in check_triggers)

@@ -65,9 +65,9 @@ async def run_developer_task(task: str, repo: str | None = None):
             print("Add your GitHub token to work with repositories.")
             return
 
-        from agents.developer import DeveloperAgent
+        from agents.backend_dev import BackendDevAgent
 
-        agent = DeveloperAgent(
+        agent = BackendDevAgent(
             github_token=settings.github_token,
             work_dir=settings.work_dir,
         )

@@ -10,6 +10,7 @@ if TYPE_CHECKING:
 
 from agents.developer import DeveloperAgent
 from config.settings import get_settings
+from utils.logging import get_ai_logger
 
 
 def setup_message_handler(bot: "discord.ext.commands.Bot") -> None:
@@ -25,6 +26,8 @@ def setup_message_handler(bot: "discord.ext.commands.Bot") -> None:
         github_token=settings.github_token,
         work_dir=settings.work_dir,
     )
+
+    ai_log = get_ai_logger()
 
     @bot.event
     async def on_message(message: discord.Message) -> None:
@@ -45,24 +48,35 @@ def setup_message_handler(bot: "discord.ext.commands.Bot") -> None:
         if not is_mentioned and not is_dm:
             return
 
+        ai_log.info(f"=== Discord message received ===")
+        ai_log.info(f"Author: {message.author.name}")
+        ai_log.info(f"Channel: {message.channel}")
+        ai_log.info(f"Content: {message.content}")
+
         # Remove the mention from the message
         content = message.content.replace(f"<@{bot.user.id}>", "").strip()
         if not content:
             await message.reply("How can I help you?")
             return
 
+        ai_log.info(f"Cleaned content: {content}")
+
         # Show typing indicator
         async with message.channel.typing():
+            ai_log.info("Processing with AI agent...")
             # Process with the AI agent
             result = await agent.chat(content)
 
             if result.success:
+                ai_log.info(f"AI response success, length: {len(result.message)}")
                 # Split long messages if needed (Discord has 2000 char limit)
                 response = result.message
                 if len(response) > 1900:
                     response = response[:1900] + "..."
                 await message.reply(response)
+                ai_log.info("Reply sent to Discord")
             else:
+                ai_log.error(f"AI response failed: {result.error}")
                 await message.reply(f"Sorry, I encountered an error: {result.error}")
 
 

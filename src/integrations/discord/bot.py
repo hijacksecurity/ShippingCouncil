@@ -54,9 +54,8 @@ class DiscordBot(BaseIntegration):
                 else:
                     await self.bot.tree.sync()
                 print("Slash commands synced successfully")
-            except Exception as e:
-                print(f"Warning: Failed to sync slash commands: {e}")
-                print("Bot will continue running - re-invite with applications.commands scope")
+            except Exception:
+                pass  # Slash command sync failed - bot continues without them
 
     def add_slash_command(
         self,

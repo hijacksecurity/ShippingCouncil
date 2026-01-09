@@ -8,4 +8,4 @@ discord:
   guild_id: 1459049188477112383 # Set to your Discord server ID for faster slash command sync
 
 github:
-  default_repo: null  # Optional: default repo for tasks (e.g., "owner/repo")
+  default_repo: hijacksecurity/ShippingCouncil # Optional: default repo for tasks (e.g., "owner/repo")

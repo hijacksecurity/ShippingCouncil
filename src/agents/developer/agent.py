@@ -16,6 +16,7 @@ from agents.base import AgentConfig, AgentResult, BaseAgent
 from agents.developer.prompts import get_system_prompt, get_implement_feature_prompt, CHAT_SYSTEM_PROMPT
 from integrations.github.client import GitHubClient
 from integrations.github.operations import GitOperations
+from utils.logging import get_ai_logger
 
 
 class DeveloperAgent(BaseAgent):
@@ -265,40 +266,54 @@ class DeveloperAgent(BaseAgent):
         Returns:
             AgentResult with the response
         """
+        ai_log = get_ai_logger()
+        ai_log.info(f"=== Chat request ===")
+        ai_log.info(f"User message: {message}")
+
         # Ensure GitHub client is connected for repo queries
         if not self._github_client:
+            ai_log.debug("Connecting to GitHub...")
             self._github_client = GitHubClient(self._github_token)
             await self._github_client.connect()
 
         # Get the user's repos to include in context
         try:
+            ai_log.debug("Fetching user repos...")
             repos = self._github_client.get_user_repos()
             repo_list = [r.full_name for r in repos[:20]]
             repo_context = f"\n\nUser's GitHub repositories:\n" + "\n".join(f"- {r}" for r in repo_list)
-        except Exception:
+            ai_log.debug(f"Found {len(repo_list)} repos")
+        except Exception as e:
+            ai_log.error(f"Failed to fetch repos: {e}")
             repo_context = "\n\n(Could not fetch repositories)"
 
         full_prompt = f"{message}{repo_context}"
+        ai_log.debug(f"Full prompt length: {len(full_prompt)} chars")
 
         options = ClaudeAgentOptions(
             system_prompt=CHAT_SYSTEM_PROMPT,
-            allowed_tools=[],  # Simple chat, no tools needed
-            max_turns=1,
+            allowed_tools=["Bash"],  # Allow bash for gh/git commands
+            max_turns=5,
         )
 
+        ai_log.info("Calling Claude Agent SDK...")
         final_message = ""
         try:
             async for msg in query(prompt=full_prompt, options=options):
+                ai_log.debug(f"Received message type: {type(msg).__name__}")
                 if isinstance(msg, AssistantMessage):
                     for block in msg.content:
                         if isinstance(block, TextBlock):
                             final_message += block.text
 
+            ai_log.info(f"AI response length: {len(final_message)} chars")
+            ai_log.debug(f"AI response: {final_message[:500]}...")
             return AgentResult(
                 success=True,
                 message=final_message,
             )
         except Exception as e:
+            ai_log.error(f"AI query failed: {e}")
             return AgentResult(
                 success=False,
                 message="Failed to process message",

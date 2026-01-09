@@ -66,4 +66,3 @@ github:
 ## License
 
 MIT
-test

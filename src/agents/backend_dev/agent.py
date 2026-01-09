@@ -31,6 +31,7 @@ class BackendDevAgent(BaseAgent):
         self,
         github_token: str,
         work_dir: Path,
+        model: str = "claude-sonnet-4-20250514",
         character_mode: bool = True,
         triggers: list[str] | None = None,
         allowed_tools: list[str] | None = None,
@@ -40,6 +41,7 @@ class BackendDevAgent(BaseAgent):
         Args:
             github_token: GitHub personal access token
             work_dir: Working directory for git operations
+            model: AI model to use (from agents.yaml)
             character_mode: Whether to use Rick Sanchez personality
             triggers: Keywords that activate this agent (from agents.yaml)
             allowed_tools: Tools this agent can use (from agents.yaml)
@@ -55,6 +57,7 @@ class BackendDevAgent(BaseAgent):
 
         super().__init__(config, work_dir)
 
+        self._model = model
         self._github_token = github_token
         self._git_ops: GitOperations | None = None
         self._github_client: GitHubClient | None = None
@@ -274,6 +277,7 @@ class BackendDevAgent(BaseAgent):
         full_prompt = f"{message}{repo_context}"
 
         options = ClaudeAgentOptions(
+            model=self._model,
             system_prompt=get_chat_prompt(character_mode=use_character),
             allowed_tools=self.config.allowed_tools,
             mcp_servers=self.get_mcp_servers(),

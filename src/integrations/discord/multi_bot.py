@@ -51,6 +51,7 @@ class MultiBotCoordinator:
             return BackendDevAgent(
                 github_token=self.settings.github_token,
                 work_dir=self.settings.work_dir,
+                model=agent_config.model,
                 character_mode=character_mode,
                 triggers=agent_config.triggers,
                 allowed_tools=agent_config.tools,
@@ -58,6 +59,7 @@ class MultiBotCoordinator:
         elif agent_name == "devops":
             return DevOpsAgent(
                 work_dir=self.settings.work_dir,
+                model=agent_config.model,
                 character_mode=character_mode,
                 triggers=agent_config.triggers,
                 allowed_tools=agent_config.tools,
@@ -179,8 +181,6 @@ class MultiBotCoordinator:
                         response = result.message
                         if len(response) > 1900:
                             response = response[:1900] + "..."
-                        if char_mode:
-                            response = f"{ag_config.character.emoji} {response}"
                         await message.reply(response, mention_author=False)
                     else:
                         await message.reply(

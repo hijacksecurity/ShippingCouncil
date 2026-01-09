@@ -56,12 +56,14 @@ global:
 agents:
   backend_dev:
     role: "Senior Backend Engineer"
+    model: "claude-sonnet-4-20250514"  # AI model per agent
     discord_bot_name: "Rick"
-    triggers: [backend, api, python, code, git, bug, fix]
+    triggers: [backend, api, python, code, git, repo, bug, fix]
     tools: [Read, Write, Edit, Glob, Grep, Bash]
 
   devops:
     role: "Senior DevOps Engineer"
+    model: "claude-sonnet-4-20250514"
     discord_bot_name: "Judy"
     triggers: [docker, container, k8s, deployment, devops]
     tools: [Read, Glob, Grep, Bash]

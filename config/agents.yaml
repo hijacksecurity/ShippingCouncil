@@ -8,6 +8,7 @@ global:
 agents:
   backend_dev:
     role: "Senior Backend Engineer"
+    model: "claude-sonnet-4-20250514"
     discord_token_env: "DISCORD_BACKEND_BOT_TOKEN"
     discord_bot_name: "Rick"
     character:
@@ -48,6 +49,7 @@ agents:
 
   devops:
     role: "Senior DevOps Engineer"
+    model: "claude-sonnet-4-20250514"
     discord_token_env: "DISCORD_DEVOPS_BOT_TOKEN"
     discord_bot_name: "Judy"
     character:

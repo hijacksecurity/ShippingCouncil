@@ -8,6 +8,63 @@ from discord import Interaction
 if TYPE_CHECKING:
     from core.council import Council
 
+from agents.developer import DeveloperAgent
+from config.settings import get_settings
+
+
+def setup_message_handler(bot: "discord.ext.commands.Bot") -> None:
+    """Set up message handler for AI agent interaction.
+
+    Args:
+        bot: Discord bot instance
+    """
+    settings = get_settings()
+
+    # Create a developer agent for chat
+    agent = DeveloperAgent(
+        github_token=settings.github_token,
+        work_dir=settings.work_dir,
+    )
+
+    @bot.event
+    async def on_message(message: discord.Message) -> None:
+        # Ignore messages from the bot itself
+        if message.author == bot.user:
+            return
+
+        # Ignore messages that start with command prefix
+        if message.content.startswith("!"):
+            await bot.process_commands(message)
+            return
+
+        # Check if bot is mentioned or if it's a DM
+        is_mentioned = bot.user in message.mentions
+        is_dm = isinstance(message.channel, discord.DMChannel)
+
+        # Only respond if mentioned or in DM
+        if not is_mentioned and not is_dm:
+            return
+
+        # Remove the mention from the message
+        content = message.content.replace(f"<@{bot.user.id}>", "").strip()
+        if not content:
+            await message.reply("How can I help you?")
+            return
+
+        # Show typing indicator
+        async with message.channel.typing():
+            # Process with the AI agent
+            result = await agent.chat(content)
+
+            if result.success:
+                # Split long messages if needed (Discord has 2000 char limit)
+                response = result.message
+                if len(response) > 1900:
+                    response = response[:1900] + "..."
+                await message.reply(response)
+            else:
+                await message.reply(f"Sorry, I encountered an error: {result.error}")
+
 
 def setup_commands(bot: "discord.ext.commands.Bot", council: "Council") -> None:
     """Set up Discord slash commands.

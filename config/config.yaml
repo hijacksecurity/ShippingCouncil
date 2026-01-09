@@ -5,7 +5,7 @@ app:
   work_dir: /tmp/shipping-council-work
 
 discord:
-  guild_id: null  # Set to your Discord server ID for faster slash command sync
+  guild_id: 1459049188477112383 # Set to your Discord server ID for faster slash command sync
 
 github:
   default_repo: null  # Optional: default repo for tasks (e.g., "owner/repo")

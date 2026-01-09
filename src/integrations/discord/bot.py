@@ -7,7 +7,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-from shipping_council.integrations.base import BaseIntegration
+from integrations.base import BaseIntegration
 
 
 class DiscordBot(BaseIntegration):
@@ -28,7 +28,6 @@ class DiscordBot(BaseIntegration):
         intents.guilds = True
 
         self.bot = commands.Bot(command_prefix="!", intents=intents)
-        self._message_handler: Callable[[discord.Message], Any] | None = None
         self._setup_events()
 
     @property
@@ -47,28 +46,17 @@ class DiscordBot(BaseIntegration):
 
         @self.bot.event
         async def on_ready() -> None:
-            if self.guild:
-                self.bot.tree.copy_global_to(guild=self.guild)
-                await self.bot.tree.sync(guild=self.guild)
-            else:
-                await self.bot.tree.sync()
             print(f"Discord bot connected as {self.bot.user}")
-
-        @self.bot.event
-        async def on_message(message: discord.Message) -> None:
-            if message.author == self.bot.user:
-                return
-            if self._message_handler:
-                await self._message_handler(message)
-            await self.bot.process_commands(message)
-
-    def on_message(self, handler: Callable[[discord.Message], Any]) -> None:
-        """Set the message handler.
-
-        Args:
-            handler: Async function to handle incoming messages
-        """
-        self._message_handler = handler
+            try:
+                if self.guild:
+                    self.bot.tree.copy_global_to(guild=self.guild)
+                    await self.bot.tree.sync(guild=self.guild)
+                else:
+                    await self.bot.tree.sync()
+                print("Slash commands synced successfully")
+            except Exception as e:
+                print(f"Warning: Failed to sync slash commands: {e}")
+                print("Bot will continue running - re-invite with applications.commands scope")
 
     def add_slash_command(
         self,

@@ -2,8 +2,13 @@
 
 import argparse
 import asyncio
+import os
 import sys
 from pathlib import Path
+
+# Fix SSL certificates for macOS
+import certifi
+os.environ["SSL_CERT_FILE"] = certifi.where()
 
 # Add project root to path
 PROJECT_ROOT = Path(__file__).parent.parent

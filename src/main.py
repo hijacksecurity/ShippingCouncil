@@ -1,8 +1,13 @@
 """ShippingCouncil main entry point."""
 
 import asyncio
+import os
 import sys
 from pathlib import Path
+
+# Fix SSL certificates for macOS
+import certifi
+os.environ["SSL_CERT_FILE"] = certifi.where()
 
 # Add project root to path for imports
 PROJECT_ROOT = Path(__file__).parent.parent
@@ -13,7 +18,7 @@ from config.settings import get_settings
 from core.council import Council
 from core.task import Task
 from integrations.discord.bot import DiscordBot
-from integrations.discord.handlers import setup_commands
+from integrations.discord.handlers import setup_commands, setup_message_handler
 from utils.logging import get_logger, setup_logging
 
 
@@ -40,8 +45,9 @@ async def run_bot() -> None:
         guild_id=settings.discord_guild_id,
     )
 
-    # Set up Discord commands
+    # Set up Discord commands and message handler
     setup_commands(discord_bot.bot, council)
+    setup_message_handler(discord_bot.bot)
 
     # Set up status callback to send updates to Discord
     async def status_callback(task: Task, message: str) -> None:

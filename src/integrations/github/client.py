@@ -3,7 +3,7 @@
 from github import Auth, Github
 from github.Repository import Repository
 
-from shipping_council.integrations.base import BaseIntegration
+from integrations.base import BaseIntegration
 
 
 class GitHubClient(BaseIntegration):

@@ -3,10 +3,17 @@
 from pathlib import Path
 from typing import Any
 
-from claude_agent_sdk import create_sdk_mcp_server, tool
+from claude_agent_sdk import (
+    ClaudeAgentOptions,
+    query,
+    AssistantMessage,
+    TextBlock,
+    tool,
+    create_sdk_mcp_server,
+)
 
-from agents.base import AgentConfig, BaseAgent
-from agents.developer.prompts import get_prompts
+from agents.base import AgentConfig, AgentResult, BaseAgent
+from agents.developer.prompts import get_system_prompt, get_implement_feature_prompt, CHAT_SYSTEM_PROMPT
 from integrations.github.client import GitHubClient
 from integrations.github.operations import GitOperations
 
@@ -178,9 +185,12 @@ class DeveloperAgent(BaseAgent):
         Returns:
             The rendered system prompt
         """
-        prompts = get_prompts()
         merged_context = {**self._repo_context, **context}
-        return prompts.get_system_prompt(**merged_context)
+        return get_system_prompt(
+            repo_name=merged_context.get("repo_name"),
+            branch_name=merged_context.get("branch_name"),
+            task_description=merged_context.get("task_description"),
+        )
 
     def get_mcp_servers(self) -> dict[str, Any]:
         """Get MCP servers for custom tools.
@@ -216,12 +226,9 @@ class DeveloperAgent(BaseAgent):
             slug = "-".join(filter(None, slug.split("-")))
             branch_name = f"feature/{slug}"
 
-        prompts = get_prompts()
-        task_prompt = prompts.get_template(
-            "implement_feature",
-            feature_description=description,
-            branch_suffix=branch_name.replace("feature/", ""),
-            acceptance_criteria=["Implementation should work as described"],
+        task_prompt = get_implement_feature_prompt(
+            description=description,
+            branch_name=branch_name.replace("feature/", ""),
         )
 
         # Run the agent with context
@@ -245,3 +252,55 @@ class DeveloperAgent(BaseAgent):
         if self._github_client:
             await self._github_client.disconnect()
         await self.end_conversation()
+
+    async def chat(self, message: str) -> AgentResult:
+        """Handle a general chat message using the AI agent.
+
+        This method handles questions and commands that don't require
+        a repository to be set up (e.g., "which repos do I have?").
+
+        Args:
+            message: The user's message
+
+        Returns:
+            AgentResult with the response
+        """
+        # Ensure GitHub client is connected for repo queries
+        if not self._github_client:
+            self._github_client = GitHubClient(self._github_token)
+            await self._github_client.connect()
+
+        # Get the user's repos to include in context
+        try:
+            repos = self._github_client.get_user_repos()
+            repo_list = [r.full_name for r in repos[:20]]
+            repo_context = f"\n\nUser's GitHub repositories:\n" + "\n".join(f"- {r}" for r in repo_list)
+        except Exception:
+            repo_context = "\n\n(Could not fetch repositories)"
+
+        full_prompt = f"{message}{repo_context}"
+
+        options = ClaudeAgentOptions(
+            system_prompt=CHAT_SYSTEM_PROMPT,
+            allowed_tools=[],  # Simple chat, no tools needed
+            max_turns=1,
+        )
+
+        final_message = ""
+        try:
+            async for msg in query(prompt=full_prompt, options=options):
+                if isinstance(msg, AssistantMessage):
+                    for block in msg.content:
+                        if isinstance(block, TextBlock):
+                            final_message += block.text
+
+            return AgentResult(
+                success=True,
+                message=final_message,
+            )
+        except Exception as e:
+            return AgentResult(
+                success=False,
+                message="Failed to process message",
+                error=str(e),
+            )

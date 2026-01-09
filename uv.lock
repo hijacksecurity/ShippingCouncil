@@ -1787,6 +1787,7 @@ version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
     { name = "anthropic" },
+    { name = "certifi" },
     { name = "claude-agent-sdk" },
     { name = "discord-py" },
     { name = "gitpython" },
@@ -1808,6 +1809,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "anthropic", specifier = ">=0.75.0" },
+    { name = "certifi", specifier = ">=2026.1.4" },
     { name = "claude-agent-sdk", specifier = ">=0.1.0" },
     { name = "discord-py", specifier = ">=2.3.0" },
     { name = "gitpython", specifier = ">=3.1.0" },

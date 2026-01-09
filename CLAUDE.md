@@ -12,11 +12,13 @@ ShippingCouncil is a multi-AI agent system that automates software development t
 # Install dependencies
 uv sync
 
-# Install with dev dependencies
-uv sync --dev
-
-# Run the application
+# Run the Discord bot
 uv run python src/main.py
+
+# Run CLI (for testing without Discord)
+uv run python src/cli.py --test
+uv run python src/cli.py --repos
+uv run python src/cli.py "your task here" --repo owner/repo
 
 # Run tests
 uv run pytest
@@ -24,10 +26,8 @@ uv run pytest
 # Type checking
 uv run mypy src/
 
-# Linting
+# Linting and formatting
 uv run ruff check src/
-
-# Format code
 uv run ruff format src/
 ```
 
@@ -35,74 +35,81 @@ uv run ruff format src/
 
 ```
 ShippingCouncil/
-├── config/                  # Configuration
-│   ├── settings.py         # Pydantic settings (loads from .env)
-│   └── agents.yaml         # Agent configurations
-├── src/                    # Application source code
-│   ├── main.py            # Entry point
-│   ├── agents/            # AI Agents
-│   │   ├── base.py        # Base agent using Claude Agent SDK
-│   │   └── developer/     # Developer agent (self-contained)
-│   │       ├── agent.py   # Agent implementation
-│   │       └── prompts/   # System prompt and templates
-│   ├── core/              # Core business logic
-│   │   ├── council.py     # Agent orchestration
-│   │   └── task.py        # Task management
-│   ├── integrations/      # External services
-│   │   ├── github/        # GitHub API + git operations
-│   │   └── discord/       # Discord bot
-│   └── utils/             # Shared utilities
-├── tests/                 # Test files
-├── docs/                  # Documentation
-└── .env                   # Secrets (not committed)
+├── config/
+│   ├── settings.py         # Settings (secrets from .env, config from config.yaml)
+│   └── config.yaml         # Non-sensitive configuration
+├── src/
+│   ├── main.py             # Discord bot entry point
+│   ├── cli.py              # CLI for testing
+│   ├── agents/
+│   │   ├── base.py         # Base agent using Claude Agent SDK
+│   │   └── developer/
+│   │       ├── agent.py    # Developer agent implementation
+│   │       └── prompts.py  # Simple prompt templates
+│   ├── core/
+│   │   ├── council.py      # Agent orchestration
+│   │   └── task.py         # Task management
+│   ├── integrations/
+│   │   ├── base.py         # Base integration interface
+│   │   ├── github/         # GitHub API + git operations
+│   │   └── discord/        # Discord bot + handlers
+│   └── utils/
+│       └── logging.py      # Logging setup
+├── tests/
+└── .env                    # Secrets (not committed)
+```
+
+## Configuration
+
+**Secrets** (`.env`):
+```
+ANTHROPIC_API_KEY=your-key
+GITHUB_TOKEN=your-token
+DISCORD_BOT_TOKEN=your-token
+```
+
+**Config** (`config/config.yaml`):
+```yaml
+app:
+  log_level: INFO
+  work_dir: /tmp/shipping-council-work
+discord:
+  guild_id: "your-guild-id"  # For faster slash command sync
+github:
+  default_repo: null
 ```
 
 ## Architecture
 
 ### Claude Agent SDK Integration
 
-Agents use the Claude Agent SDK instead of raw API calls:
-- Automatic context management
-- Built-in tools (Read, Write, Edit, Bash, etc.)
+Agents use the Claude Agent SDK:
+- Automatic context management and tool execution
+- Built-in tools (Read, Write, Edit, Bash, Glob, Grep)
 - Custom tools via MCP servers
-- Session persistence and conversation continuation
+- Session persistence
 
-### Self-Contained Agents
+### Developer Agent
 
-Each agent is self-contained in `src/agents/{agent_name}/`:
-- `agent.py` - Implementation extending BaseAgent
-- `prompts/system.md` - Jinja2 templated system prompt
-- `prompts/templates/` - Task-specific templates
+The developer agent (`src/agents/developer/`) can:
+- Chat and answer questions (e.g., "which repos do I have?")
+- Implement features on GitHub repos
+- Create branches, commits, and pull requests
 
-The Developer Agent uses:
-- Built-in SDK tools for file operations
-- Custom MCP tools for git operations (commit, push, create PR)
+### Discord Integration
 
-### Configuration
-
-- `.env` - All secrets (ANTHROPIC_API_KEY, GITHUB_TOKEN, DISCORD_BOT_TOKEN)
-- `config/settings.py` - Pydantic settings with validation
-- `config/agents.yaml` - Non-sensitive agent configurations
+- Mention the bot to chat: `@ShippingCouncilDev which repos do I have?`
+- Slash commands: `/task`, `/status`, `/repos`, `/cancel`, `/approve`
 
 ## Key Patterns
 
-- **Claude Agent SDK**: Uses `query()` for tasks, SDK handles tool execution loop
-- **MCP Tools**: Custom tools defined with `@tool` decorator and `create_sdk_mcp_server()`
-- **Prompts as Markdown**: Jinja2 templates in markdown for easy editing
+- **Simple prompts**: Plain Python strings in `prompts.py`, no complex templating
 - **Async-first**: All I/O operations use async/await
+- **Self-contained agents**: Each agent has its own folder with agent.py and prompts.py
 
 ## Adding a New Agent
 
-1. Create `src/agents/{agent_name}/` directory
-2. Create `agent.py` extending `BaseAgent`:
-   - Implement `name` property
-   - Implement `get_system_prompt()` method
-   - Implement `get_mcp_servers()` for custom tools
-3. Create `prompts/system.md` with Jinja2 templating
+1. Create `src/agents/{name}/` directory
+2. Create `agent.py` extending `BaseAgent`
+3. Create `prompts.py` with simple string templates
 4. Register in `Council._execute_task()`
-
-## Adding a New Integration
-
-1. Create `src/integrations/{name}/` directory
-2. Implement `BaseIntegration` interface
-3. Add client and operation files as needed

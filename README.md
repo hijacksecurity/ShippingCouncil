@@ -1,13 +1,21 @@
 # ShippingCouncil
 
-Multi-AI agent system that automates software development tasks. Uses Claude Agent SDK for AI agents, Discord for communication, and GitHub for code operations.
+Multi-AI agent system for software development with character personalities. Each agent runs as its own Discord bot with distinct tools and capabilities.
 
 ## Features
 
-- **Developer Agent**: Takes requirements, writes code, creates branches, and opens PRs
-- **Discord Integration**: Slash commands for task management (`/task`, `/status`, `/approve`)
-- **GitHub Integration**: Clone repos, commit changes, push, create pull requests
-- **CLI Interface**: Test agents without Discord
+- **Multi-Agent Architecture**: Multiple specialized AI agents, each as a separate Discord bot
+- **Character Personalities**: Agents have fun character modes (Rick Sanchez, Judy Alvarez) or professional mode
+- **Trigger-Based Routing**: Messages automatically route to relevant agents based on keywords
+- **Tool Isolation**: Each agent has specific tool permissions (backend dev can write code, devops is read-only)
+- **API Limits**: Built-in safeguards prevent runaway loops (max 50 calls per session)
+
+## Agents
+
+| Agent | Character | Role | Tools |
+|-------|-----------|------|-------|
+| Backend Dev | Rick Sanchez (Rick & Morty) | Senior Backend Engineer | Read, Write, Edit, Bash, Git |
+| DevOps | Judy Alvarez (Cyberpunk 2077) | Senior DevOps Engineer | Read, Glob, Grep, Bash (docker) |
 
 ## Quick Start
 
@@ -17,51 +25,88 @@ uv sync
 
 # Copy and configure secrets
 cp .env.example .env
-# Edit .env with your API keys
+# Edit .env with your API keys and Discord bot tokens
 
-# Test the CLI
-python src/cli.py --test
+# Run Discord bots (multi-agent mode)
+uv run python src/main.py
 
-# List your GitHub repos
-python src/cli.py --repos
-
-# Run a task
-python src/cli.py "Explain this codebase"
+# Or test with CLI (no Discord needed)
+uv run python src/cli.py --test
+uv run python src/cli.py "Explain this codebase"
 ```
 
 ## Configuration
 
 **Secrets** (`.env`):
-```
+```bash
 ANTHROPIC_API_KEY=your-key
 GITHUB_TOKEN=your-token
-DISCORD_BOT_TOKEN=your-token
+
+# Each agent needs its own Discord bot token
+DISCORD_BACKEND_BOT_TOKEN=rick-bot-token
+DISCORD_DEVOPS_BOT_TOKEN=judy-bot-token
 ```
 
-**Config** (`config/config.yaml`):
+**Agent Config** (`config/agents.yaml`):
 ```yaml
-app:
-  log_level: INFO
-  work_dir: /tmp/shipping-council-work
+global:
+  character_mode: true  # Toggle character personalities
+  max_api_calls: 50     # Prevent runaway loops
 
-discord:
-  guild_id: null
+agents:
+  backend_dev:
+    role: "Senior Backend Engineer"
+    discord_bot_name: "Rick"
+    triggers: [backend, api, python, code, git, bug, fix]
+    tools: [Read, Write, Edit, Glob, Grep, Bash]
 
-github:
-  default_repo: null
+  devops:
+    role: "Senior DevOps Engineer"
+    discord_bot_name: "Judy"
+    triggers: [docker, container, k8s, deployment, devops]
+    tools: [Read, Glob, Grep, Bash]
 ```
+
+## Discord Usage
+
+- **Direct mention** (`@Rick` or `@Judy`): That specific agent responds
+- **@everyone / @here**: All agents respond
+- **Regular message**: All agents evaluate based on triggers, relevant ones respond
+- **DM**: The agent you DM responds directly
+
+Example:
+- "Help me fix this Python bug" -> Rick responds (matches: python, bug, fix)
+- "Check the docker containers" -> Judy responds (matches: docker, container)
+- "What's up?" -> No response (no triggers match)
 
 ## Project Structure
 
 ```
-├── config/           # Configuration files
+ShippingCouncil/
+├── config/
+│   ├── settings.py      # Settings loader
+│   ├── config.yaml      # App configuration
+│   └── agents.yaml      # Agent definitions
 ├── src/
-│   ├── agents/       # AI agents (developer, etc.)
-│   ├── core/         # Council orchestration, task management
-│   ├── integrations/ # GitHub, Discord
-│   └── cli.py        # CLI interface
+│   ├── main.py          # Entry point
+│   ├── cli.py           # CLI for testing
+│   ├── agents/
+│   │   ├── base.py      # Base agent class
+│   │   ├── backend_dev/ # Rick - backend engineer
+│   │   └── devops/      # Judy - DevOps engineer
+│   └── integrations/
+│       ├── github/      # GitHub API + git operations
+│       └── discord/     # Discord bots + multi-bot coordinator
 └── tests/
 ```
+
+## Adding a New Agent
+
+1. Create `src/agents/{name}/` with `agent.py` and `prompts.py`
+2. Add agent config to `config/agents.yaml`
+3. Create Discord bot in Developer Portal (enable Message Content Intent)
+4. Add `DISCORD_{NAME}_BOT_TOKEN` to `.env`
+5. Register in `MultiBotCoordinator._create_agent()`
 
 ## License
 

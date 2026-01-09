@@ -4,7 +4,8 @@ import asyncio
 from pathlib import Path
 from typing import Any, Callable
 
-from agents.developer import DeveloperAgent
+from agents.backend_dev import BackendDevAgent
+from agents.devops import DevOpsAgent
 from core.task import Task, TaskManager, TaskStatus
 from integrations.github.client import GitHubClient
 
@@ -128,8 +129,10 @@ class Council:
             task: Task to execute
         """
         try:
-            if task.agent_type == "developer":
-                await self._execute_developer_task(task)
+            if task.agent_type in ("developer", "backend_dev"):
+                await self._execute_backend_dev_task(task)
+            elif task.agent_type == "devops":
+                await self._execute_devops_task(task)
             else:
                 task.set_error(f"Unknown agent type: {task.agent_type}")
                 await self._notify_status(task, "Error: Unknown agent type")
@@ -147,8 +150,8 @@ class Council:
             if task.id in self._running_tasks:
                 del self._running_tasks[task.id]
 
-    async def _execute_developer_task(self, task: Task) -> None:
-        """Execute a developer task.
+    async def _execute_backend_dev_task(self, task: Task) -> None:
+        """Execute a backend developer task.
 
         Args:
             task: Task to execute
@@ -159,8 +162,8 @@ class Council:
 
         await self._notify_status(task, "Setting up repository...")
 
-        # Create developer agent (SDK handles API key via ANTHROPIC_API_KEY env var)
-        agent = DeveloperAgent(
+        # Create backend dev agent (SDK handles API key via ANTHROPIC_API_KEY env var)
+        agent = BackendDevAgent(
             github_token=self._github_token,
             work_dir=self._work_dir,
         )
@@ -186,6 +189,32 @@ class Council:
             else:
                 task.set_error(result.get("error", "Unknown error"))
                 await self._notify_status(task, f"Failed: {result.get('error')}")
+
+        finally:
+            await agent.cleanup()
+
+    async def _execute_devops_task(self, task: Task) -> None:
+        """Execute a DevOps task.
+
+        Args:
+            task: Task to execute
+        """
+        await self._notify_status(task, "DevOps agent analyzing...")
+
+        # Create DevOps agent (read-only Docker access)
+        agent = DevOpsAgent(work_dir=self._work_dir)
+
+        try:
+            # DevOps tasks are typically diagnostic/monitoring
+            result = await agent.chat(task.description)
+
+            if result.success:
+                task.set_result({"message": result.message})
+                task.update_status(TaskStatus.COMPLETED)
+                await self._notify_status(task, f"Analysis complete:\n{result.message[:500]}")
+            else:
+                task.set_error(result.error or "Unknown error")
+                await self._notify_status(task, f"Failed: {result.error}")
 
         finally:
             await agent.cleanup()

@@ -19,16 +19,50 @@ from core.council import Council
 from core.task import Task
 from integrations.discord.bot import DiscordBot
 from integrations.discord.handlers import setup_commands, setup_message_handler
+from integrations.discord.multi_bot import MultiBotCoordinator
 from utils.logging import get_logger, setup_logging
 
 
-async def run_bot() -> None:
-    """Run the Discord bot with the council."""
+async def run_multi_bot() -> None:
+    """Run multiple Discord bots (one per agent)."""
     settings = get_settings()
     setup_logging(settings.log_level)
     logger = get_logger("main")
 
-    logger.info("Starting ShippingCouncil...")
+    logger.info("Starting ShippingCouncil (multi-agent mode)...")
+    logger.info(f"Character mode: {settings.character_mode}")
+    logger.info(f"Configured agents: {list(settings.agents.keys())}")
+
+    # Create work directory
+    settings.work_dir.mkdir(parents=True, exist_ok=True)
+
+    # Initialize multi-bot coordinator
+    coordinator = MultiBotCoordinator(settings)
+
+    try:
+        # Start all bots
+        await coordinator.start_all()
+        logger.info("All bots started")
+
+        # Keep running until interrupted
+        while coordinator.is_running():
+            await asyncio.sleep(1)
+
+    except KeyboardInterrupt:
+        logger.info("Shutting down...")
+
+    finally:
+        await coordinator.stop_all()
+        logger.info("Shutdown complete")
+
+
+async def run_single_bot() -> None:
+    """Run a single Discord bot (legacy mode)."""
+    settings = get_settings()
+    setup_logging(settings.log_level)
+    logger = get_logger("main")
+
+    logger.info("Starting ShippingCouncil (single-bot mode)...")
 
     # Create work directory
     settings.work_dir.mkdir(parents=True, exist_ok=True)
@@ -75,6 +109,31 @@ async def run_bot() -> None:
         await council.stop()
         await discord_bot.disconnect()
         logger.info("Shutdown complete")
+
+
+async def run_bot() -> None:
+    """Run the Discord bot(s).
+
+    Uses multi-bot mode if multiple agents have Discord tokens configured,
+    otherwise falls back to single-bot mode.
+    """
+    settings = get_settings()
+
+    # Check how many agents have Discord tokens
+    agents_with_tokens = [
+        name for name, config in settings.agents.items()
+        if config.discord_token
+    ]
+
+    if len(agents_with_tokens) > 1:
+        # Multi-agent mode
+        await run_multi_bot()
+    elif len(agents_with_tokens) == 1:
+        # Single agent from new config
+        await run_multi_bot()  # Still use coordinator for consistency
+    else:
+        # Fall back to legacy single-bot mode
+        await run_single_bot()
 
 
 def main() -> None:

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-ShippingCouncil is a multi-AI agent system that automates software development tasks. It uses Claude Agent SDK for AI agents, Discord for human-agent communication, and GitHub for code operations.
+ShippingCouncil is a multi-AI agent system with character personalities. Each agent runs as its own Discord bot with distinct tools and capabilities. Uses Claude Agent SDK for AI agents, Discord for communication, and GitHub for code operations.
 
 ## Development Commands
 
@@ -12,7 +12,7 @@ ShippingCouncil is a multi-AI agent system that automates software development t
 # Install dependencies
 uv sync
 
-# Run the Discord bot
+# Run the Discord bots (multi-agent mode)
 uv run python src/main.py
 
 # Run CLI (for testing without Discord)
@@ -36,28 +36,54 @@ uv run ruff format src/
 ```
 ShippingCouncil/
 ├── config/
-│   ├── settings.py         # Settings (secrets from .env, config from config.yaml)
-│   └── config.yaml         # Non-sensitive configuration
+│   ├── settings.py         # Settings (secrets from .env, config from YAML)
+│   ├── config.yaml         # App configuration
+│   └── agents.yaml         # Agent definitions (characters, tools, triggers)
 ├── src/
-│   ├── main.py             # Discord bot entry point
+│   ├── main.py             # Entry point (auto-detects single/multi-bot mode)
 │   ├── cli.py              # CLI for testing
 │   ├── agents/
-│   │   ├── base.py         # Base agent using Claude Agent SDK
-│   │   └── developer/
-│   │       ├── agent.py    # Developer agent implementation
-│   │       └── prompts.py  # Simple prompt templates
+│   │   ├── base.py         # Base agent with API limit tracking
+│   │   ├── backend_dev/    # Rick Sanchez - backend engineer (git tools)
+│   │   │   ├── agent.py
+│   │   │   └── prompts.py  # Professional + Rick character prompts
+│   │   └── devops/         # Judy Alvarez - DevOps engineer (docker read-only)
+│   │       ├── agent.py
+│   │       └── prompts.py  # Professional + Judy character prompts
 │   ├── core/
 │   │   ├── council.py      # Agent orchestration
 │   │   └── task.py         # Task management
 │   ├── integrations/
 │   │   ├── base.py         # Base integration interface
 │   │   ├── github/         # GitHub API + git operations
-│   │   └── discord/        # Discord bot + handlers
+│   │   └── discord/
+│   │       ├── bot.py      # Discord bot setup
+│   │       ├── handlers.py # Message handlers
+│   │       └── multi_bot.py # Multi-bot coordinator
 │   └── utils/
-│       └── logging.py      # Logging setup
+│       └── logging.py      # Logging to logs/app.log
+├── logs/                   # Log files (gitignored except .gitkeep)
 ├── tests/
 └── .env                    # Secrets (not committed)
 ```
+
+## Agents
+
+| Agent | Character | Tools | Access |
+|-------|-----------|-------|--------|
+| Backend Dev | Rick Sanchez (Rick & Morty) | Read, Write, Edit, Glob, Grep, Bash, mcp__git__* | Full write |
+| DevOps | Judy Alvarez (Cyberpunk 2077) | Read, Glob, Grep, Bash | Read only (docker via Bash) |
+
+### Character Mode
+
+Toggle in `config/agents.yaml`:
+```yaml
+global:
+  character_mode: true  # false for professional mode
+  max_api_calls: 50     # Prevent runaway loops
+```
+
+Each agent has two prompts: professional and character. Character mode adds personality without affecting task completion.
 
 ## Configuration
 
@@ -65,51 +91,64 @@ ShippingCouncil/
 ```
 ANTHROPIC_API_KEY=your-key
 GITHUB_TOKEN=your-token
+
+# Multi-bot mode (each agent = separate bot)
+DISCORD_BACKEND_BOT_TOKEN=rick-bot-token
+DISCORD_DEVOPS_BOT_TOKEN=judy-bot-token
+
+# Legacy single-bot mode
 DISCORD_BOT_TOKEN=your-token
 ```
 
-**Config** (`config/config.yaml`):
+**Agent Config** (`config/agents.yaml`):
 ```yaml
-app:
-  log_level: INFO
-  work_dir: /tmp/shipping-council-work
-discord:
-  guild_id: "your-guild-id"  # For faster slash command sync
-github:
-  default_repo: null
+agents:
+  backend_dev:
+    role: "Senior Backend Engineer"
+    discord_token_env: "DISCORD_BACKEND_BOT_TOKEN"
+    character:
+      name: "Rick Sanchez"
+      emoji: "🧪"
+    triggers: [backend, api, git, code, feature]
+    tools: [Read, Write, Edit, Glob, Grep, Bash, "mcp__git__*"]
+
+  devops:
+    role: "Senior DevOps Engineer"
+    discord_token_env: "DISCORD_DEVOPS_BOT_TOKEN"
+    character:
+      name: "Judy Alvarez"
+      emoji: "⚡"
+    triggers: [docker, container, k8s, deployment, devops, logs]
+    tools: [Read, Glob, Grep, Bash]
 ```
 
-## Architecture
+## Discord Usage
 
-### Claude Agent SDK Integration
+- **Direct @mention** (`@Rick`, `@Judy`): That specific agent responds
+- **@everyone / @here**: All agents respond
+- **Regular message**: All agents evaluate based on triggers, relevant ones respond
+- **DM**: The agent you DM responds directly
+- **Slash commands**: `/task`, `/status`, `/repos`, `/cancel`, `/approve`
 
-Agents use the Claude Agent SDK:
-- Automatic context management and tool execution
-- Built-in tools (Read, Write, Edit, Bash, Glob, Grep)
-- Custom tools via MCP servers
-- Session persistence
-
-### Developer Agent
-
-The developer agent (`src/agents/developer/`) can:
-- Chat and answer questions (e.g., "which repos do I have?")
-- Implement features on GitHub repos
-- Create branches, commits, and pull requests
-
-### Discord Integration
-
-- Mention the bot to chat: `@ShippingCouncilDev which repos do I have?`
-- Slash commands: `/task`, `/status`, `/repos`, `/cancel`, `/approve`
+Example routing:
+- "Help me with this Python code" -> Rick responds (triggers: python, code)
+- "Check the docker logs" -> Judy responds (triggers: docker, logs)
+- "Hello everyone" -> No response (no triggers match)
 
 ## Key Patterns
 
-- **Simple prompts**: Plain Python strings in `prompts.py`, no complex templating
-- **Async-first**: All I/O operations use async/await
-- **Self-contained agents**: Each agent has its own folder with agent.py and prompts.py
+- **Character mode toggle**: Professional or personality prompts via config
+- **API call limits**: Max 50 calls per session, warning at 80%
+- **Read-only tools**: DevOps agent can only view Docker, not modify
+- **Multi-bot coordinator**: Each agent is its own Discord bot instance
+- **Trigger-based routing**: Agents respond to keywords in their domain
 
 ## Adding a New Agent
 
-1. Create `src/agents/{name}/` directory
-2. Create `agent.py` extending `BaseAgent`
-3. Create `prompts.py` with simple string templates
-4. Register in `Council._execute_task()`
+1. Create `src/agents/{name}/` directory with `agent.py` and `prompts.py`
+2. Extend `BaseAgent`, implement `name`, `get_system_prompt()`, `get_mcp_servers()`
+3. Add character prompt with personality, catchphrases
+4. Add to `config/agents.yaml` with role, triggers, tools
+5. Create new Discord bot in Developer Portal
+6. Add `DISCORD_{NAME}_BOT_TOKEN` to `.env`
+7. Register in `MultiBotCoordinator._create_agent()`

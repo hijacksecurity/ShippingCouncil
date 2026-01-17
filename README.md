@@ -5,6 +5,8 @@ Multi-AI agent system for software development with character personalities. Eac
 ## Features
 
 - **Multi-Agent Architecture**: Multiple specialized AI agents, each as a separate Discord bot
+- **Model Per Agent**: Configure different Claude models per agent (Sonnet, Opus, Haiku)
+- **Session Continuity**: Agents remember conversation context across messages
 - **Character Personalities**: Agents have fun character modes (Rick Sanchez, Judy Alvarez) or professional mode
 - **Trigger-Based Routing**: Messages automatically route to relevant agents based on keywords
 - **Tool Isolation**: Each agent has specific tool permissions (backend dev can write code, devops is read-only)
@@ -105,7 +107,7 @@ ShippingCouncil/
 ## Adding a New Agent
 
 1. Create `src/agents/{name}/` with `agent.py` and `prompts.py`
-2. Add agent config to `config/agents.yaml`
+2. Add agent config to `config/agents.yaml` (role, model, triggers, tools)
 3. Create Discord bot in Developer Portal (enable Message Content Intent)
 4. Add `DISCORD_{NAME}_BOT_TOKEN` to `.env`
 5. Register in `MultiBotCoordinator._create_agent()`

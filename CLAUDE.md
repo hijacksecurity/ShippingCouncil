@@ -139,13 +139,68 @@ Example routing:
 
 ## Key Patterns
 
-- **Model per agent**: Each agent can use a different Claude model (config in agents.yaml)
-- **Session continuity**: Agents maintain conversation context across messages
-- **Character mode toggle**: Professional or personality prompts via config
+- **Single source of truth**: All agent config lives in `agents.yaml` (model, triggers, tools)
+- **Model per agent**: Each agent can use a different Claude model
+- **Session continuity**: Agents use `session_id` to maintain conversation context across messages
+- **Character mode toggle**: Professional or personality prompts via global config
 - **API call limits**: Max 50 calls per session, warning at 80%
 - **Read-only tools**: DevOps agent can only view Docker, not modify
 - **Multi-bot coordinator**: Each agent is its own Discord bot instance
-- **Trigger-based routing**: Agents respond to keywords in their domain
+- **Trigger-based routing**: Agents respond to keywords in their domain (substring match)
+
+## Message Flow
+
+1. Discord message received by all bot clients
+2. Each bot's `on_message` handler evaluates:
+   - Direct mention → respond
+   - @everyone/@here → respond
+   - DM → respond
+   - Otherwise → check triggers, respond if match
+3. Agent's `chat()` method called with message
+4. Claude Agent SDK `query()` with model, tools, system prompt
+5. Session ID captured for conversation continuity
+6. Response sent via `message.reply()`
+
+## Testing Agents
+
+Interactive CLI for testing agents without Discord:
+
+```bash
+# Chat with Rick (backend_dev)
+uv run python src/cli.py chat backend_dev
+
+# Chat with Judy (devops)
+uv run python src/cli.py chat devops
+
+# Professional mode (no character)
+uv run python src/cli.py chat backend_dev --no-character
+
+# Override model
+uv run python src/cli.py chat devops --model claude-haiku-3-5-20241022
+```
+
+Commands during chat:
+- `reset` - Clear conversation history
+- `info` - Show agent info (model, API calls, session)
+- `quit` / `exit` - End conversation
+
+For pytest, use `AgentTestHarness` from `tests/agents/test_utils.py`:
+
+```python
+from tests.agents.test_utils import AgentTestHarness
+
+async def test_backend_dev():
+    harness = AgentTestHarness("backend_dev")
+    result = await harness.send("What repos do we have?")
+    assert result.success
+    await harness.cleanup()
+```
+
+## Debugging
+
+- **AI logs**: `logs/ai_debug.log` - SDK calls, prompts, responses
+- **App logs**: `logs/app.log` - General application logs
+- **Discord debug**: Set `log_level: DEBUG` in config.yaml
 
 ## Adding a New Agent
 

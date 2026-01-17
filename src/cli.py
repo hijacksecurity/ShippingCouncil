@@ -1,4 +1,19 @@
-"""CLI interface for testing the developer agent without Discord."""
+"""CLI interface for testing agents without Discord.
+
+Usage:
+    # Interactive chat with an agent
+    uv run python src/cli.py chat backend_dev
+    uv run python src/cli.py chat devops --no-character
+
+    # Run a single task
+    uv run python src/cli.py "Explain this codebase"
+
+    # Test SDK
+    uv run python src/cli.py --test
+
+    # List repos
+    uv run python src/cli.py --repos
+"""
 
 import argparse
 import asyncio
@@ -141,18 +156,142 @@ def list_repos():
     print()
 
 
+def create_agent(agent_name: str, settings, model: str | None, character_mode: bool):
+    """Create an agent instance by name."""
+    from agents.backend_dev import BackendDevAgent
+    from agents.devops import DevOpsAgent
+
+    agent_config = settings.get_agent(agent_name)
+    if not agent_config:
+        raise ValueError(f"Unknown agent: {agent_name}. Available: {list(settings.agents.keys())}")
+
+    use_model = model or agent_config.model
+
+    if agent_name == "backend_dev":
+        return BackendDevAgent(
+            github_token=settings.github_token,
+            work_dir=settings.work_dir,
+            model=use_model,
+            character_mode=character_mode,
+            triggers=agent_config.triggers,
+            allowed_tools=agent_config.tools,
+        )
+    elif agent_name == "devops":
+        return DevOpsAgent(
+            work_dir=settings.work_dir,
+            model=use_model,
+            character_mode=character_mode,
+            triggers=agent_config.triggers,
+            allowed_tools=agent_config.tools,
+        )
+    else:
+        raise ValueError(f"Agent '{agent_name}' not implemented")
+
+
+async def chat_with_agent(agent_name: str, model: str | None, character_mode: bool):
+    """Interactive chat with an agent."""
+    settings = get_settings()
+    agent_config = settings.get_agent(agent_name)
+    agent = create_agent(agent_name, settings, model, character_mode)
+
+    char_name = agent_config.character.name if character_mode else agent_name
+
+    print(f"\n{'='*60}")
+    print(f"Agent: {agent_name} ({char_name})")
+    print(f"Model: {agent._model}")
+    print(f"Character mode: {character_mode}")
+    print(f"Triggers: {', '.join(agent_config.triggers)}")
+    print(f"Tools: {', '.join(agent_config.tools)}")
+    print(f"{'='*60}")
+    print("Commands: 'quit', 'reset', 'info'")
+    print(f"{'='*60}\n")
+
+    try:
+        while True:
+            try:
+                user_input = input("You: ").strip()
+            except (EOFError, KeyboardInterrupt):
+                print("\n\nGoodbye!")
+                break
+
+            if not user_input:
+                continue
+
+            if user_input.lower() in ("quit", "exit"):
+                print("\nGoodbye!")
+                break
+
+            if user_input.lower() == "reset":
+                agent.reset()
+                print("[Session reset]\n")
+                continue
+
+            if user_input.lower() == "info":
+                print(f"\n[Agent Info]")
+                print(f"  Name: {agent_name}")
+                print(f"  Character: {char_name}")
+                print(f"  Model: {agent._model}")
+                print(f"  API calls: {agent._api_call_count}/{agent.config.max_api_calls}")
+                print(f"  Session ID: {agent._session_id or 'None'}")
+                print(f"  Triggers: {', '.join(agent_config.triggers)}")
+                print(f"  Tools: {', '.join(agent_config.tools)}")
+                print()
+                continue
+
+            try:
+                result = await agent.chat(user_input, character_mode=character_mode)
+                if result.success:
+                    print(f"{char_name}: {result.message}\n")
+                else:
+                    print(f"[Error: {result.error}]\n")
+            except Exception as e:
+                print(f"[Exception: {e}]\n")
+    finally:
+        await agent.cleanup()
+
+
 def main():
     parser = argparse.ArgumentParser(
-        description="ShippingCouncil CLI - Test the developer agent"
+        description="ShippingCouncil CLI - Test agents",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  uv run python src/cli.py chat backend_dev       # Chat with Rick
+  uv run python src/cli.py chat devops            # Chat with Judy
+  uv run python src/cli.py chat devops --no-character
+  uv run python src/cli.py --test                 # Test SDK
+  uv run python src/cli.py --repos                # List repos
+  uv run python src/cli.py "Explain this code"    # One-off task
+        """
     )
+
+    subparsers = parser.add_subparsers(dest="command")
+
+    # Chat subcommand
+    chat_parser = subparsers.add_parser("chat", help="Interactive chat with an agent")
+    chat_parser.add_argument(
+        "agent",
+        choices=["backend_dev", "devops"],
+        help="Agent to chat with (backend_dev=Rick, devops=Judy)"
+    )
+    chat_parser.add_argument(
+        "--no-character",
+        action="store_true",
+        help="Disable character personality"
+    )
+    chat_parser.add_argument(
+        "--model",
+        help="Override model (e.g., claude-haiku-3-5-20241022)"
+    )
+
+    # Legacy arguments
     parser.add_argument(
         "task",
         nargs="?",
         help="Task for the developer agent",
     )
     parser.add_argument(
-        "--repo",
-        "-r",
+        "--repo", "-r",
         help="GitHub repository (owner/repo format)",
     )
     parser.add_argument(
@@ -168,7 +307,13 @@ def main():
 
     args = parser.parse_args()
 
-    if args.test:
+    if args.command == "chat":
+        asyncio.run(chat_with_agent(
+            args.agent,
+            args.model,
+            not args.no_character
+        ))
+    elif args.test:
         asyncio.run(test_agent_sdk())
     elif args.repos:
         list_repos()
@@ -176,11 +321,6 @@ def main():
         asyncio.run(run_developer_task(args.task, args.repo))
     else:
         parser.print_help()
-        print("\nExamples:")
-        print("  python src/cli.py --test")
-        print("  python src/cli.py --repos")
-        print('  python src/cli.py "Explain this codebase"')
-        print('  python src/cli.py "Add a README" --repo owner/repo')
 
 
 if __name__ == "__main__":
